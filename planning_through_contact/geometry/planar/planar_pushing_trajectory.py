@@ -564,7 +564,11 @@ class SimplePlanarPushingTrajectory(AbstractPlanarPushingTrajectory):
             cos_int, sin_int = np.concatenate(
                 [np.interp([t], self.times, f) for f in [cos_traj, sin_traj]]
             )
-            R = np.array([[cos_int, -sin_int], [sin_int, cos_int]])
+            # Embed as a 3D rotation (about the z-axis) since consumers such as
+            # the SceneGraph-based visualizer's RotationMatrix expect a 3x3
+            # matrix, matching get_knot_point_value's convention below.
+            R = np.eye(3)
+            R[:2, :2] = np.array([[cos_int, -sin_int], [sin_int, cos_int]])
             return R
 
         elif traj_to_get == "p_WB":

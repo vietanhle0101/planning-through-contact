@@ -70,6 +70,44 @@ which will generate plans that look like this:
   <img src="images/demo_box.gif" alt="Demo triangle" width="70%" />
 </p>
 
+### Experimental direct MINLP MPC (rectangular box)
+
+The GCS planner remains unchanged.  A separate CasADi/BONMIN direct-MINLP MPC
+example is available for the existing rectangular box and cylindrical point
+pusher:
+
+```console
+poetry install
+poetry run python scripts/planar_pushing/run_minlp_mpc_box.py
+```
+
+It uses four finite-face contact modes and the four exterior free-space regions
+already defined by `Box2d`; passing `--visualize` replays the executed MPC steps
+using the repository's planar visualizer.
+
+The default backend is CasADi/BONMIN.  A native Gurobi MINLP transcription is
+also available for installations with a valid Gurobi license:
+
+```console
+poetry run python scripts/planar_pushing/run_minlp_mpc_box.py --solver gurobi
+```
+
+For a single offline plan (rather than receding-horizon execution), use the
+complete predicted horizon and optionally replay it:
+
+```console
+poetry run python scripts/planar_pushing/run_minlp_open_loop_box.py --solver gurobi --horizon 8 --time-limit 60 --visualize
+```
+
+To see a regrasp that changes the active contact face, run the structurally
+forced scenario: the pusher starts on left face 3, but the box must move left,
+so the plan releases, moves around the top of the box, and pushes on right face
+1.
+
+```console
+poetry run python scripts/planar_pushing/run_minlp_open_loop_box.py --solver gurobi --forced-regrasp --time-limit 60 --visualize
+```
+
 ---
 
 ## RSS 2024: Towards Tight Convex Relaxations for Contact-Rich Manipulation

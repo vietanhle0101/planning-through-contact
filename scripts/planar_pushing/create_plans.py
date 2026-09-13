@@ -117,7 +117,7 @@ if __name__ == "__main__":
         pusher_radius=pusher_radius,
         use_case=use_case,
     )
-    solver_params = get_default_solver_params(debug, clarabel=False)
+    solver_params = get_default_solver_params(debug, clarabel=True)
 
     if hardware_demos:
         output_dir = "hardware_demos"
