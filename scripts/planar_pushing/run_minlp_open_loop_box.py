@@ -14,6 +14,9 @@ import numpy as np
 
 from planning_through_contact.geometry.collision_geometry.box_2d import Box2d
 from planning_through_contact.geometry.planar.planar_pose import PlanarPose
+from planning_through_contact.geometry.planar.planar_pushing_trajectory import (
+    SimplePlanarPushingTrajectory,
+)
 from planning_through_contact.geometry.rigid_body import RigidBody
 from planning_through_contact.planning.planar.gurobi_minlp_mpc import (
     PlanarBoxPushingGurobiMpc,
@@ -27,11 +30,19 @@ from planning_through_contact.planning.planar.minlp_mpc import (
     PlanarPushingState,
 )
 from planning_through_contact.planning.planar.planar_plan_config import (
+    PlanarPlanConfig,
+    PlanarPushingStartAndGoal,
     SliderPusherSystemConfig,
 )
 from planning_through_contact.visualize.planar_pushing import (
-    visualize_planar_pushing_trajectory_legacy,
+    visualize_planar_pushing_trajectory,
 )
+
+
+def _rotation_matrix(theta: float) -> np.ndarray:
+    return np.array(
+        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+    )
 
 
 def make_planner(args: argparse.Namespace) -> PlanarBoxPushingMinlpMpc:
@@ -187,7 +198,14 @@ def main() -> None:
     parser.add_argument(
         "--visualize",
         action="store_true",
-        help="Replay the whole planned trajectory with the legacy visualizer.",
+        help="Save an mp4 of the whole planned trajectory with the repository's "
+        "modern (SceneGraph-based) planar visualizer.",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="trajectories/minlp_open_loop_box",
+        help="Filename (without extension) to save the mp4 to, if --visualize is set.",
     )
     args = parser.parse_args()
     args.horizon = args.horizon or (12 if args.forced_regrasp else 4)
@@ -258,10 +276,36 @@ def main() -> None:
     print_mode_schedule(planner, solution.mode_indices)
 
     if args.visualize:
-        trajectory = planner.solution_to_legacy_trajectory(solution)
-        visualize_planar_pushing_trajectory_legacy(
-            trajectory, planner.geometry, planner.system.pusher_radius
+        states = solution.states
+        p_WBs = states[0:2].T
+        R_WBs = [_rotation_matrix(theta) for theta in states[2]]
+        p_WPs = states[3:5].T
+        # contact_forces_B is already in physical Newtons: force_scale only
+        # sizes the optimization bound, it is not a further rescaling of the
+        # solved decision variable.
+        f_c_Ws = np.column_stack(
+            [
+                R_WBs[k] @ solution.contact_forces_B[:, k]
+                for k in range(solution.contact_forces_B.shape[1])
+            ]
+            + [np.zeros(2)]
+        ).T
+        plan_config = PlanarPlanConfig(
+            dynamics_config=planner.system,
+            start_and_goal=PlanarPushingStartAndGoal(
+                slider_initial_pose=initial_state.slider,
+                slider_target_pose=goal.slider,
+                pusher_initial_pose=PlanarPose(*initial_state.pusher_position, 0.0),
+                pusher_target_pose=PlanarPose(*terminal.pusher_position, 0.0),
+            ),
         )
+        trajectory = SimplePlanarPushingTrajectory(
+            p_WBs, R_WBs, p_WPs, f_c_Ws, args.time_step, plan_config
+        )
+        visualize_planar_pushing_trajectory(
+            trajectory, save=True, show=False, filename=args.output
+        )
+        print(f"Saved animation to {args.output}.mp4")
 
 
 if __name__ == "__main__":
